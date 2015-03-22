@@ -1,0 +1,89 @@
+---
+title: "MLProject"
+author: "Akhil Das"
+date: "Sunday, March 22, 2015"
+output: html_document
+---
+
+Hi, 
+
+To start the project, I first analyzed the data in csv file of the training data. I found that many of the variables have plenty of missing values. So to first clean the data, I first removed the variables which had missing values. 
+
+After this, I was left with just 55 variables (I also created a dummy variable for new_window since it was a categorical variable. The dummy variable had value of 1 for "no" and 0 for "yes"). Our target variable "classe" is also a categorical variable so I converted that also in numeric with below rule:
+A = 1, B = 2, C = 3, D=4, E = 5
+
+This was important to find out the correlation of the target variable with predictor variables.  
+
+```{r}
+setwd("E:/MachineLearning")
+pml <- read.csv("pml-training_v1.csv", header=T)
+names(pml)
+Cor <- cor(pml)
+write.csv(Cor, file="Cor.csv")
+```
+
+I used the extracted csv file to filter for variables which have absolute correlation value of more than 0 with "classe" variable. After this analysis I came up with below 15 variables:
+
+magnet_belt_y, magnet_arm_y, accel_forearm_x, magnet_forearm_x, magnet_belt_z, pitch_arm, magnet_arm_z, total_accel_arm, magnet_forearm_y, accel_dumbbell_x, magnet_dumbbell_z, total_accel_forearm, accel_arm_x, magnet_arm_x, pitch_forearm
+
+Then I created a small subset of training data using only these 15 variables. 
+
+```{r}
+pml <- read.csv("pml-training.csv", header=T)
+
+y <- c("magnet_belt_y","magnet_arm_y","accel_forearm_x","magnet_forearm_x","magnet_belt_z","pitch_arm","magnet_arm_z","total_accel_arm","magnet_forearm_y","accel_dumbbell_x","magnet_dumbbell_z","total_accel_forearm","accel_arm_x","magnet_arm_x","pitch_forearm")
+
+pml <- pml[,c(y,"classe")]
+
+head(pml)
+```
+
+My next target was to filter out more important variables from these 15 predictor variables. So first I partitioned the data into validation, training and testing set.
+
+```{r}
+library(caret)
+set.seed(111)
+inVal <- createDataPartition(y=pml$classe, p=0.75, list=FALSE)
+validation <- pml[-inVal,]
+pmlSmall <- pml[inVal,]
+inTrain <- createDataPartition(y=pmlSmall$classe, p=0.5, list=FALSE)
+training <- pmlSmall[inTrain,]
+testing <- pmlSmall[-inTrain,]
+```
+
+Then I fit a classification tree in the training set using all the predictor variables.
+
+```{r}
+set.seed(222)
+Fit <- train(classe~.,method="rpart",data=training)
+varImp(Fit)
+```
+
+Using the varImp function I further classified the variables with more than 25 importance ratings and created a subset of training data with only those variables. 
+
+```{r}
+z <- c("pitch_forearm","magnet_arm_x","magnet_belt_y","magnet_belt_z","accel_dumbbell_x","magnet_arm_y","magnet_dumbbell_z","accel_forearm_x","accel_arm_x")
+training <- training[,c(z,"classe")]
+```
+
+Then I ran random forest and gbm boosting algorithms on training data set to develop different models and tested their accuracy on testing data set. 
+
+```{r}
+Fit2 <- train(classe~.,method="rf",data=training)
+Fit3 <- train(classe~.,method="gbm",data=training)
+pred2 <- predict(Fit2, testing)
+pred3 <- predict(Fit3, testing)
+table(pred2, testing$classe)
+table(pred3, testing$classe)
+```
+
+As you can see, prediction accuracy is higher for model generated from Random Forest algorithm. I ran the final model on validation set and the accuracy percentage came as 91%
+
+```{r}
+pred4 <- predict(Fit2, validation)
+table(pred4,validation$classe)
+```
+
+I also ran additional algortithm for combining predictors of Random Forest and boosting but could not achieve more accuracy. Hence my final model is the Fit2 model generated using Random Forest algorithm. 
+
+Thank you.
